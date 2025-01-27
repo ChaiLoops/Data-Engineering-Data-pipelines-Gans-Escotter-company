@@ -1,0 +1,43 @@
+cities_data = []
+def scrape_city_population_data(cities_list):
+    for city in cities_list:
+        url = f"https://en.wikipedia.org/wiki/{city}"
+        response = requests.get(url)
+        city_soup = BeautifulSoup(response.content, 'html.parser')
+
+    
+        population = city_soup.find(string=re.compile("Population")).find_next("td").get_text().replace(',', '')
+        pop_int = int(population)
+
+        pop_census_year_full_text = (
+            city_soup
+            .find(string="Population")
+            .find_next(class_='ib-settlement-fn')
+            .get_text()
+        )
+        pop_census_year = re.findall('\((.{4}).*\)', pop_census_year_full_text)[0]
+        cities_data.append({
+            "city_name": city,
+            "population": pop_int,
+            'census_year': pop_census_year,
+            "data_collection_timestamp": dt.datetime.now().strftime('%d/%m/%y')
+        })
+
+    return pd.DataFrame(cities_data)
+# Example usage
+citiess_dyanmics_df = scrape_city_population_data(cities_list)
+pop_data_df = scrape_city_population_data(cities_from_sql['city_name']) #Extracts the city_name column
+citiess_dyanmics_df= (
+    pop_data_df.merge(cities_from_sql,
+                            on = 'city_name',
+                                   how= 'inner')
+                [['city_id', 'population', 'census_year', 'data_collection_timestamp']]
+)
+# Send data to sql table
+citiess_dyanmics_df .to_sql('populations',
+                  if_exists='append',
+                  con=connection_string,
+                  index=False)
+
+# Read data from sql table 
+citiess_dyanmics_df  = pd.read_sql("populations", con=connection_string)
