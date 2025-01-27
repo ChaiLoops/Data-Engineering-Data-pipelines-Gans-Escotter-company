@@ -1,0 +1,7 @@
+schema = "gans_escooter"
+host = "your_google_instance_IP"
+user = "root"
+password = keys.connection_password_
+port = 3306
+
+connection_string = f'mysql+pymysql://{user}:{password}@{host}:{port}/{schema}'
