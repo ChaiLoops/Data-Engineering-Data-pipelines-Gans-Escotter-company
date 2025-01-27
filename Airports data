@@ -1,0 +1,65 @@
+airports_data = []
+airports_cities_data = []
+
+# Loop through cities in cities table
+for i, row in cities_from_sql.iterrows():
+
+    # Construct request
+    url = "https://aerodatabox.p.rapidapi.com/airports/search/location"
+    params = {"withFlightInfoOnly":"true",
+                "lat":row['latitude'],
+                'lon':row['longitude'],
+                'radiusKm':"50",
+                'limit':10}
+    headers = {
+        "X-RapidAPI-Key": keys.RapidAPI_Key,
+        "X-RapidAPI-Host": "aerodatabox.p.rapidapi.com"
+    }
+    # Request from API
+    response = requests.get(url, headers=headers, params=params)
+    airports_json = response.json()
+
+    # Loop through airports in response
+    for airport in airports_json['items']:
+        # Gather data for database
+        airport_data = {
+            'iata': airport['iata'],
+            'icao': airport['icao'],
+            'airport_name': airport['name'],
+            'latitude': airport['location']['lat'],
+            'longitude': airport['location']['lon']
+        }
+        # Add to list of airport data
+        airports_data.append(airport_data)
+
+        airport_city_data = {
+            'iata': airport['iata'],
+            'city_id': row['city_id']
+        }
+        # Add to list of airport-city connections
+        airports_cities_data.append(airport_city_data)
+
+# Convert to data frames
+airports_df = pd.DataFrame(airports_data)
+# Remove any duplicate airports
+airports_df.drop_duplicates(inplace=True)
+cities_airports_df = pd.DataFrame(airports_cities_data)
+
+# Send data to sql 
+airports_df.to_sql(
+    'airports',
+    if_exists='append',
+    con=connection_string,
+    index=False)
+cities_airports_df.to_sql(
+    'cities_airports',
+    if_exists='append',
+    con=connection_string,
+    index=False)
+
+# Read data from sql 
+airports_df  = pd.read_sql("airports", con=connection_string)
+airports_df
+
+cities_airports_df  = pd.read_sql("cities_airports", con=connection_string)
+cities_airports_df
