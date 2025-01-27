@@ -1,0 +1,41 @@
+def update_forcast_table(connection_string):
+    # Pull city data from database to get corresponding forcasts
+    cities_df= pd.read_sql('cities',  con= connection_string)
+    forcasts = []
+    # Loop through all the cities in the cities_dynamic table pulled from database
+    for i, row in cities_df.iterrows(): #iteration through the rows of df
+        lat= row['latitude']
+        lon= row['longitude']
+        #Make API request
+        params= {
+             'lat': lat,
+              'lon': lon,
+              'appid': keys.api_keys
+        }
+        response= requests.get(url= "https://api.openweathermap.org/data/2.5/forecast?",
+                              params=params)
+        weather_data = response.json()
+        # Loop through all the forcast
+        for forecast in weather_data['list']:
+            #Locate desired information
+            forecast_dict= {
+                'city_id': row['city_id'],
+                'forecast_time': forecast['dt_txt'],
+                'temparature': round(forecast['main']['temp'] - 273.15, 2),  # Rounded to 2 decimals
+                'feels_like': round(forecast['main']['feels_like'] - 273.15, 2),  # Rounded to 2 decimals
+                'wind_speed': round(forecast['wind']['speed'], 2),
+                'weather_condition' : forecast['weather'][0]['description'] 
+            }
+            forcasts.append(forecast_dict)
+    forcast_df = pd.DataFrame(forcasts)
+# Send data to sql
+    forcast_df.to_sql('forecasts',
+                if_exists='append',
+                con=connection_string,
+                index=False)
+
+# Calling scraping function to scrape data
+update_forcast_table(connection_string)
+# Raed data from sql
+forecasts_df  = pd.read_sql("forecasts", con=connection_string)
+forecasts_df
