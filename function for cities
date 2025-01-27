@@ -1,0 +1,34 @@
+cities_list = ["Berlin", "Hamburg", "Munich", "Cologne"]
+
+def scrape_city_data(cities_list):
+ cities_data = []
+ API_key = keys.api_keys
+ for city in cities_list:
+        cities=requests.get(f"https://api.openweathermap.org/data/2.5/forecast?q={city}&cnt={1}&appid={API_key}")
+        cities_json = cities.json()
+        land= cities_json['city']['country']
+        lat= cities_json['city']['coord']['lat']
+        lon= cities_json['city']['coord']['lon']
+        #pop= cities_json['city']['population']
+        city_data= {
+                 'city_name': city,
+                 'country' : land,
+                 'latitude': lat,
+                 'longitude': lon,
+                  }
+         # Add row to list
+        cities_data.append(city_data)
+  # Combine all rows into data frame
+ return pd.DataFrame(cities_data)
+
+cities_static_df = scrape_city_data(cities_list)
+cities_static_df
+
+# Send the data to MySQL workbench
+cities_static_df.to_sql('cities',
+                  if_exists='append',
+                  con=connection_string,
+                  index=False)
+# read the data from MySQL workbench in python VS code
+cities_from_sql = pd.read_sql("cities", con=connection_string)
+cities_from_sql
