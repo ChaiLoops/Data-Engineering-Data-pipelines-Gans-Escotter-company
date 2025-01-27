@@ -1,0 +1,75 @@
+def request_flights_data():
+    # Get connection string
+    #connection_string = connect_to_gans_local()  # Ensure this function is defined elsewhere
+    connection_string = f'mysql+pymysql://{user}:{password}@{host}:{port}/{schema}'
+    # Pull airports from the database to get corresponding flights
+    airports_df = pd.read_sql('airports', con=connection_string)
+    flights_data = []
+    # Create time windows for 12hr searches
+    tomorrow = dt.datetime.now() + dt.timedelta(days=1)
+    tomorrow_date = tomorrow.strftime('%Y-%m-%d')
+    # Time windows for morning and afternoon
+    morning_start = f'{tomorrow_date}T00:00'
+    morning_end = f'{tomorrow_date}T11:59'
+    afternoon_start = f'{tomorrow_date}T12:00'
+    afternoon_end = f'{tomorrow_date}T23:59'
+    day_parts = [(morning_start, morning_end), (afternoon_start, afternoon_end)]
+    # Loop through airports
+    for i, row in airports_df.iterrows():
+        iata_code = row['iata']  # Using IATA code from the row
+        # Loop for both halves of the day
+        for time_start, time_end in day_parts:
+            # Construct request URL
+            base_url = "https://aerodatabox.p.rapidapi.com/flights/airports"
+            path_params = f"/iata/{iata_code}/{time_start}/{time_end}"
+            full_url = base_url + path_params
+            querystring = {
+                "withLeg": "true",
+                "direction": "Arrival",
+                "withCancelled": "False",
+                "withCodeshared": "False",
+                "withCargo": "False",
+                "withPrivate": "False",
+                "withLocation": "false"
+            }
+            headers = {
+                "x-rapidapi-key": keys.RapidAPI_Key,
+                "x-rapidapi-host": "aerodatabox.p.rapidapi.com"
+            }
+            # Request data from API
+            response = requests.get(full_url, headers=headers, params=querystring)
+            if response.status_code == 200:
+                flight_json = response.json()
+                # Check if 'arrivals' key exists in the response
+                if 'arrivals' in flight_json:
+                    # Loop through flight data
+                    for flight in flight_json['arrivals']:
+                        scheduled_arrival = flight['arrival']['scheduledTime']['local']
+                        updated_arrival = (
+                            flight['arrival'].get('revisedTime', {'local': scheduled_arrival})['local']
+                        )
+                        # Arrange flight data into a dictionary
+                        flight_data = {
+                            'flight_number': flight['number'],
+                            'iata': iata_code,
+                            'scheduled_arrival_time': scheduled_arrival[:-6],  # Remove timezone part
+                            'updated_arrival_time': updated_arrival[:-6],  # Remove timezone part
+                            'departure_location': flight['departure']['airport']['name']
+                        }
+                        flights_data.append(flight_data)
+                else:
+                    print(f"No arrivals found for {iata_code} between {time_start} and {time_end}")
+            else:
+                print(f"Error fetching data for {iata_code} between {time_start} and {time_end}: {response.status_code}")
+    # Convert list of flight data to a DataFrame
+    flights_df = pd.DataFrame(flights_data)
+    # Send data to sql
+    flights_df.to_sql('flights',
+                      if_exists='append',
+                      con=connection_string,
+                      index=False)
+
+request_flights_data()
+# Read data from sql
+flights_df  = pd.read_sql("flights", con=connection_string)
+flights_df
